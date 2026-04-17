@@ -1,4 +1,3 @@
-ts
 import { NextRequest, NextResponse } from 'next/server';
 import { fetchHistoricalSummary } from '@/lib/stockbit';
 
