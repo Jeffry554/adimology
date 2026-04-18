@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { verifySessionToken } from './lib/auth';
 
 const SESSION_NAME = 'adimology_session';
+const EXTENSION_SYNC_PATH = '/api/update-token';
 
 // Define paths that don't require authentication
 const PUBLIC_PATHS = [
@@ -17,6 +18,17 @@ export async function proxy(request: NextRequest) {
   const authHeader = request.headers.get('authorization');
   const cronSecret = process.env.CRON_SECRET;
   if (cronSecret && authHeader === `Bearer ${cronSecret}`) {
+    return NextResponse.next();
+  }
+
+  // 1b. Allow extension token sync via dedicated shared secret header
+  const extensionSyncKey = process.env.EXTENSION_SYNC_KEY;
+  const requestSyncKey = request.headers.get('x-extension-key');
+  if (
+    pathname === EXTENSION_SYNC_PATH &&
+    extensionSyncKey &&
+    requestSyncKey === extensionSyncKey
+  ) {
     return NextResponse.next();
   }
 
@@ -43,13 +55,11 @@ export async function proxy(request: NextRequest) {
   // Verify token
   const session = await verifySessionToken(sessionCookie);
   if (!session) {
-    // Session invalid or expired
     const response = NextResponse.json(
       { success: false, error: 'Unauthorized: Invalid session' },
       { status: 401 }
     );
-    
-    // Clear the invalid cookie
+
     response.cookies.delete(SESSION_NAME);
     return response;
   }
