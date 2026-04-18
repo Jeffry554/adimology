@@ -3,6 +3,7 @@ console.log("Stockbit Token Syncer: Background script starting...");
 // Configuration - Ganti domain ini dengan domain aplikasi Anda
 // const APP_API_URL = "http://localhost:3000/api/update-token"; // Dev
 const APP_API_URL = "https://glistening-kashata-399b06.netlify.app/api/update-token"; // Prod
+const EXTENSION_SYNC_KEY = "stokbit-sync-2026-rahasia-8f4k";
 
 console.log("Target API URL:", APP_API_URL);
 
@@ -10,14 +11,12 @@ let lastSyncedToken = null;
 
 console.log("Registering webRequest listener...");
 
-
-// Helper to decode JWT payload
 function parseJwt(token) {
   try {
     const base64Url = token.split('.')[1];
     const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
     const jsonPayload = decodeURIComponent(atob(base64).split('').map(function(c) {
-        return '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2);
+      return '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2);
     }).join(''));
 
     return JSON.parse(jsonPayload);
@@ -29,24 +28,20 @@ function parseJwt(token) {
 chrome.webRequest.onBeforeSendHeaders.addListener(
   (details) => {
     console.log("Checking request:", details.url);
-    
-    // Look for the Authorization header
+
     const authHeader = details.requestHeaders.find(
       (header) => header.name.toLowerCase() === "authorization"
     );
 
     if (authHeader && authHeader.value) {
-      // Check if it is a Bearer token
       if (authHeader.value.startsWith("Bearer ")) {
-        const token = authHeader.value.substring(7); // Remove "Bearer " prefix
+        const token = authHeader.value.substring(7);
 
-        // Only sync if the token has changed to avoid spamming the API
         if (token !== lastSyncedToken) {
           console.log("New token candidate detected...");
-          
+
           const decoded = parseJwt(token);
-          
-          // Only sync if it's a valid JWT (must have a payload with an expiry)
+
           if (!decoded || !decoded.exp) {
             console.log("Skipping non-JWT or invalid token.");
             return;
@@ -54,10 +49,9 @@ chrome.webRequest.onBeforeSendHeaders.addListener(
 
           console.log("Valid JWT detected from:", details.url);
           const expiresAt = decoded.exp;
-          
-          // Debugging
+
           console.log("Token Expiry:", new Date(expiresAt * 1000));
-          
+
           syncToken(token, expiresAt);
         }
       }
@@ -76,14 +70,15 @@ function syncToken(token, expiresAt) {
   fetch(APP_API_URL, {
     method: 'POST',
     headers: {
-      'Content-Type': 'application/json'
+      'Content-Type': 'application/json',
+      'X-Extension-Key': EXTENSION_SYNC_KEY
     },
     body: JSON.stringify(payload)
   })
     .then((response) => {
       if (response.ok) {
         console.log("Token successfully synced to API.");
-        lastSyncedToken = token; // Update cache on success
+        lastSyncedToken = token;
       } else {
         console.error("Failed to sync token. Status:", response.status);
       }
